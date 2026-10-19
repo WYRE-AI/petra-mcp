@@ -33,6 +33,13 @@ const TENANT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 
+/** Date.parse rolls 2026-02-30 over to March 2, so check the calendar date itself. */
+function isRealCalendarDate(value: string): boolean {
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
 export function optionalString(args: Record<string, unknown>, name: string): string | undefined {
   const value = args[name];
   if (value === undefined || value === null) return undefined;
@@ -60,7 +67,7 @@ export function tenantIdArg(args: Record<string, unknown>, required = false): st
 export function dateTimeArg(args: Record<string, unknown>, name: string): string | undefined {
   const value = optionalString(args, name);
   if (value === undefined) return undefined;
-  if (!ISO_DATE_TIME_RE.test(value) || Number.isNaN(Date.parse(value))) {
+  if (!ISO_DATE_TIME_RE.test(value) || !isRealCalendarDate(value) || Number.isNaN(Date.parse(value))) {
     throw new ArgumentError(`${name} must be an ISO 8601 date (2026-03-01) or date-time (2026-03-01T00:00:00Z).`);
   }
   return value;
@@ -70,7 +77,7 @@ export function dateTimeArg(args: Record<string, unknown>, name: string): string
 export function dateArg(args: Record<string, unknown>, name: string): string | undefined {
   const value = optionalString(args, name);
   if (value === undefined) return undefined;
-  if (!ISO_DATE_RE.test(value) || Number.isNaN(Date.parse(value))) {
+  if (!ISO_DATE_RE.test(value) || !isRealCalendarDate(value)) {
     throw new ArgumentError(`${name} must be a date in YYYY-MM-DD format.`);
   }
   return value;

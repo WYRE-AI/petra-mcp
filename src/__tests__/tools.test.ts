@@ -122,7 +122,7 @@ describe('tool handlers', () => {
     });
 
     it('rejects bad arguments before calling Petra', async () => {
-      for (const args of [{ limit: 0 }, { limit: 501 }, { limit: 2.5 }, { startDate: 'last week' }, { tenantId: '../admin' }]) {
+      for (const args of [{ limit: 0 }, { limit: 501 }, { limit: 2.5 }, { startDate: 'last week' }, { startDate: '2026-02-30' }, { tenantId: '../admin' }]) {
         const { result } = await call('petra_list_incidents', args);
         expect(result.isError).toBe(true);
       }
@@ -204,6 +204,7 @@ describe('tool handlers', () => {
 
     it('validates asOf and billableStatus', async () => {
       expect((await call('petra_get_usage', { asOf: '03/01/2026' })).result.isError).toBe(true);
+      expect((await call('petra_get_usage', { asOf: '2026-13-01' })).result.isError).toBe(true);
       expect((await call('petra_get_usage', { billableStatus: 'Gold' })).result.isError).toBe(true);
       expect(fetchMock).not.toHaveBeenCalled();
     });
