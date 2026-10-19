@@ -10,7 +10,7 @@
 
 import { createHmac } from 'node:crypto';
 import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { connect, type AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getCredentialsMock = vi.hoisted(() => vi.fn());
@@ -474,6 +474,22 @@ describe('HTTP /mcp authentication', () => {
     } finally {
       logs.restore();
     }
+  });
+
+  it('does not crash on a malformed Host header', async () => {
+    const server = await listen();
+    const raw = await new Promise<string>((resolve, reject) => {
+      const socket = connect(server.port, '127.0.0.1', () => {
+        socket.write('GET /health HTTP/1.1\r\nHost: a b\r\nConnection: close\r\n\r\n');
+      });
+      let data = '';
+      socket.on('data', (chunk) => (data += chunk.toString()));
+      socket.on('end', () => resolve(data));
+      socket.on('error', reject);
+    });
+    expect(raw.split('\r\n')[0]).toMatch(/^HTTP\/1\.1 (200|400)/);
+    const after = await sendHttp({ port: server.port, method: 'GET', path: '/health' });
+    expect(after.status).toBe(200);
   });
 
   it('serves /health and /healthz without authentication and without reading credentials', async () => {

@@ -1,4 +1,4 @@
-import { createServer as createHttpServer, type Server } from 'node:http';
+import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from './server.js';
 import { runWithCredentials } from './client.js';
@@ -111,8 +111,17 @@ export async function startHttpServer(): Promise<Server> {
   const host = resolveBindHost(insecureDev);
   const isGatewayMode = process.env.AUTH_MODE === 'gateway';
 
-  const httpServer = createHttpServer(async (req, res) => {
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const handleRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    // Parse against a fixed base so a malformed Host header cannot make
+    // new URL() throw before routing. Only the path is used.
+    let url: URL;
+    try {
+      url = new URL(req.url || '/', 'http://localhost');
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Bad request URL' }));
+      return;
+    }
 
     // /health is container LIVENESS, not credential-readiness. Unauthenticated,
     // and it must not read credentials: gateway mode has none at process scope,
@@ -183,6 +192,22 @@ export async function startHttpServer(): Promise<Server> {
     }
 
     await handle();
+  };
+
+  const httpServer = createHttpServer((req, res) => {
+    // A rejected handler must never become an unhandled rejection, which
+    // would take the process down.
+    handleRequest(req, res).catch((error: unknown) => {
+      logger.error('Unhandled HTTP request error', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal server error' }));
+      } else {
+        res.end();
+      }
+    });
   });
 
   return new Promise((resolve, reject) => {

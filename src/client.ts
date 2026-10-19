@@ -112,7 +112,8 @@ function cacheKey(creds: PetraCredentials, url: string): string {
 function buildUrl(path: string, query?: Record<string, QueryValue>): string {
   const url = new URL(path, BASE_URL);
   if (query) {
-    for (const [key, value] of Object.entries(query)) {
+    // Sorted so the same options in a different key order share one cache entry.
+    for (const [key, value] of Object.entries(query).sort(([a], [b]) => a.localeCompare(b))) {
       if (value === undefined || value === '') continue;
       url.searchParams.set(key, String(value));
     }
