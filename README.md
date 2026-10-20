@@ -57,7 +57,7 @@ Every tool is a `GET`, annotated `readOnlyHint: true` and `destructiveHint: fals
 
 ### Security events
 - `petra_list_incidents` - M365 compromise incidents, newest first, with user, remediation status, live flag, dwell time and phishing email (`GET /v1/incidents`). Omit `tenantId` for all tenants. `startDate` and `limit` (1-500) go to Petra; `remediationStatus`, `liveOnly`, `userPrincipalName` and `includePhishingEmail` are applied locally after the limit.
-- `petra_get_incident` - one incident by ID. Petra has no single-incident route, so this searches the newest 500 (narrow with `tenantId`/`startDate`).
+- `petra_get_incident` - one incident by ID. Petra has no single-incident route, so this searches the newest 500 (pass `tenantId` to reach older ones in a tenant).
 - `petra_get_failed_attacks` - blocked-attack summary for one tenant: total, by country, daily by attack type, and most-targeted users (`GET /v1/failed-attacks`). Defaults to the last 30 days.
 - `petra_list_posture_reports` - M365 posture reports: score and grade, control rollup, Global Admin review, top risks and every check with its suggested fix (`GET /v1/posture-reports`). Latest per tenant by default. Optional `includeChecks: false` for a compact view.
 

@@ -58,7 +58,7 @@ export const SECURITY_TOOLS: Tool[] = [
   {
     name: 'petra_get_incident',
     description:
-      'Get one Petra incident by its ID, with full user and phishing-email detail. Petra has no single-incident route, so this searches the newest 500 incidents (narrow with tenantId or startDate for older ones).',
+      'Get one Petra incident by its ID, with full user and phishing-email detail. Petra has no single-incident route, so this searches the newest 500 incidents (pass tenantId to reach older ones).',
     annotations: { ...READ_ONLY_ANNOTATIONS, title: 'Get Petra incident' },
     inputSchema: {
       type: 'object',
@@ -164,7 +164,7 @@ export async function handleSecurityTool(name: string, args: Record<string, unkn
         return errorResult(
           `Incident ${incidentId} was not found in the newest ${MAX_LIMIT} incidents` +
             (tenantId ? ` for tenant ${tenantId}` : '') +
-            '. Pass tenantId (and startDate) to narrow the search.'
+            '. Pass tenantId to search within that tenant instead.'
         );
       }
       return textResult(incident);
