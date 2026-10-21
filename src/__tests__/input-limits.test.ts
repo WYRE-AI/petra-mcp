@@ -48,10 +48,8 @@ describe('countToolInputElements', () => {
   });
 
   it('builds the McpServer-compatible error result', () => {
-    expect(toolInputTooLargeResult('t')).toEqual({
-      content: [
-        { type: 'text', text: 'Invalid arguments for tool t: arguments contain more than the maximum of 10000 elements' },
-      ],
+    expect(toolInputTooLargeResult()).toEqual({
+      content: [{ type: 'text', text: 'Tool input exceeds the maximum of 10000 elements' }],
       isError: true,
     });
   });
@@ -170,7 +168,51 @@ describe('HTTP request limits', () => {
     expect(res.status).toBe(200);
     const result = JSON.parse(res.body).result;
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('maximum of 10000 elements');
+    expect(result.content[0].text).toBe('Tool input exceeds the maximum of 10000 elements');
+    expect(result.content[0].text).not.toContain('petra_list_tenants');
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 (not 413) in gateway mode for an oversized body with valid S2S but no credential header', async () => {
+    process.env.AUTH_MODE = 'gateway';
+    const port = await listen();
+    const res = await post(port, { 'x-gateway-s2s': s2s() }, OVERSIZED);
+    expect(res.status).toBe(401);
+    expect(res.body).toContain('missing required gateway credential header');
+  });
+
+  it('returns 413 in gateway mode for an oversized body with S2S and credential header', async () => {
+    process.env.AUTH_MODE = 'gateway';
+    const port = await listen();
+    const res = await post(port, { 'x-gateway-s2s': s2s(), 'x-petra-api-key': 'k' }, OVERSIZED);
+    expect(res.status).toBe(413);
+  });
+
+  it('returns 413 for a chunked oversized body without Content-Length', async () => {
+    const port = await listen();
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          hostname: '127.0.0.1',
+          port,
+          method: 'POST',
+          path: '/mcp',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            'transfer-encoding': 'chunked',
+            'x-gateway-s2s': s2s(),
+          },
+        },
+        (r) => {
+          r.resume();
+          r.on('end', () => resolve(r.statusCode ?? 0));
+        },
+      );
+      req.setTimeout(5000, () => req.destroy(new Error('timeout')));
+      req.on('error', reject);
+      req.end(OVERSIZED);
+    });
+    expect(status).toBe(413);
   });
 });
