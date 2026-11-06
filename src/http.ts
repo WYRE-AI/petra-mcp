@@ -3,6 +3,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { createServer } from './server.js';
 import { runWithCredentials } from './client.js';
 import { logger } from './utils/logger.js';
+import { MAX_REQUEST_BODY_BYTES } from './input-limits.js';
 import { verifyS2sHeader, S2S_HEADER } from './s2s-verify.js';
 
 /**
@@ -154,6 +155,35 @@ export async function startHttpServer(): Promise<Server> {
       return;
     }
 
+    // Credentials must arrive on every request in gateway mode. Falling
+    // through would resolve PETRA_API_KEY from the process environment, which
+    // is not request-scoped and would let anyone who can reach the port use the
+    // container's vendor credentials. Checked before the body cap so a missing
+    // credential is 401, never 413.
+    let apiKey: string | undefined;
+    if (isGatewayMode) {
+      apiKey = headerValue(req.headers['x-petra-api-key']);
+      if (!apiKey) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(GATEWAY_CREDENTIALS_UNAUTHORIZED));
+        return;
+      }
+    }
+
+    // Body cap runs only after the S2S and gateway credential checks so unauthenticated callers still get 401.
+    const contentLength = Number(headerValue(req.headers['content-length']));
+    if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BODY_BYTES) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32600, message: `Request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes` },
+          id: null,
+        })
+      );
+      return;
+    }
+
     const handle = async () => {
       // SECURITY-CRITICAL invariant: this transport MUST stay stateless
       // (sessionIdGenerator: undefined + enableJsonResponse: true).
@@ -167,6 +197,7 @@ export async function startHttpServer(): Promise<Server> {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
+        maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
       });
       res.on('close', () => {
         transport.close();
@@ -176,17 +207,7 @@ export async function startHttpServer(): Promise<Server> {
       await transport.handleRequest(req, res);
     };
 
-    if (isGatewayMode) {
-      // Credentials must arrive on every request. Falling through would
-      // resolve PETRA_API_KEY from the process environment, which is not
-      // request-scoped and would let anyone who can reach the port use the
-      // container's vendor credentials.
-      const apiKey = headerValue(req.headers['x-petra-api-key']);
-      if (!apiKey) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(GATEWAY_CREDENTIALS_UNAUTHORIZED));
-        return;
-      }
+    if (apiKey) {
       await runWithCredentials({ apiKey }, handle);
       return;
     }
