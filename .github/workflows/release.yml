@@ -14,14 +14,16 @@ on:
 jobs:
   release:
     permissions:
+      actions: read # Security Scan: SARIF upload reads run metadata on a private repo
       contents: write
       issues: write
       pull-requests: write
       packages: write
       id-token: write
       security-events: write
-    uses: WYRE-AI/reusable-workflows/.github/workflows/mcp-server-release.yml@fbc1e9864c3c591f0d76c46b1de750489614fe0b
+    uses: WYRE-AI/reusable-workflows/.github/workflows/mcp-server-release.yml@508ef4ddcd19285d108423a27f44078a15451575
     with:
       server-name: petra-mcp
       image-name: ghcr.io/wyre-ai/petra-mcp
+      fail-on-severity: HIGH,CRITICAL
     secrets: inherit
