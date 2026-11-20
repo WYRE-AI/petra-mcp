@@ -46,7 +46,7 @@
     "@semantic-release/npm": "^13.0.0",
     "@types/node": "^22.10.0",
     "@vitest/coverage-v8": "^2.1.8",
-    "semantic-release": "^25.0.9",
+    "semantic-release": "^26.0.1",
     "tsup": "^8.0.0",
     "typescript": "^6.0.3",
     "vitest": "^2.1.8"
